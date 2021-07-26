@@ -1,0 +1,127 @@
+package com.litalk.controller;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+
+import javax.persistence.EntityNotFoundException;
+
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.mockito.Mockito;
+import org.skyscreamer.jsonassert.JSONAssert;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.RequestBuilder;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+
+import com.litalk.init.ImagePoller;
+import com.litalk.init.Initializer;
+import com.litalk.init.Parser;
+import com.litalk.model.ExtendedImage;
+import com.litalk.repository.ImageRepository;
+import com.litalk.shieldtask.ShieldtaskApplication;
+
+@RunWith(SpringRunner.class)
+@WebMvcTest(ImageController.class)
+@WithMockUser
+@ContextConfiguration(classes= {ShieldtaskApplication.class, Initializer.class, ImagePoller.class, Parser.class})
+public class ImageControllerTest {
+
+	@Autowired
+	private MockMvc mockMvc;
+	
+	@MockBean
+	private ImageRepository imgRepository;
+
+	@Rule
+	public TemporaryFolder folder= new TemporaryFolder();
+	
+	long millis = 1627146342;
+	Date date = new Date(millis);
+	ExtendedImage mockExImage;
+	ExtendedImage mockExImage2;
+	List<ExtendedImage> mockList;
+	String IMG1_LOCAL_PATH = (System.getProperty("user.dir") + "\\saved_images\\img1.jpg");
+	String ESCAPED_IMG1_LOCAL_PATH = IMG1_LOCAL_PATH.replace("\\", "\\\\");
+																		
+	
+	public ImageControllerTest() {
+		initMocks();
+	}
+
+	private void initMocks() {
+		mockExImage = new ExtendedImage(1, 1, "amazing isalnd view",
+				"https://shield-j-test.s3.amazonaws.com/photo1.jfif",
+				"https://shield-j-test.s3.amazonaws.com/photo1.jfif",
+				IMG1_LOCAL_PATH, date, 8.46);
+		mockList = new ArrayList<>();
+		mockList.add(mockExImage);
+	}
+
+	@Test
+	public void getAllImgsTest() throws Exception {
+		Mockito.when(imgRepository.findAll()).thenReturn(mockList);
+		String filePath = folder.newFile("img1.jpg").getAbsolutePath();
+		mockList.get(0).setLocalImgPath(filePath);
+		RequestBuilder requestBuilder = MockMvcRequestBuilders.get("/get-all-images")
+				.accept(MediaType.APPLICATION_JSON);
+		MvcResult result = mockMvc.perform(requestBuilder).andReturn();
+		String expected = "[{\"headers\":{\"Content-Type\":[\"image/jpeg\"]},\"body\":\"\",\"statusCodeValue\":200,\"statusCode\":\"OK\"}]";
+		JSONAssert.assertEquals(expected, result.getResponse().getContentAsString(), false);
+	}
+	
+	@Test
+	public void getImgsByAlbumIdTest() throws Exception {
+																	  
+												 
+		Mockito.when(imgRepository.findByAlbumId(1)).thenReturn(mockList);
+		RequestBuilder requestBuilder = MockMvcRequestBuilders.get("/get-images-by-albumid?albumId=1")
+				.accept(MediaType.APPLICATION_JSON);
+		MvcResult result = mockMvc.perform(requestBuilder).andReturn();
+		String expected = "[{\"headers\":{\"Content-Type\":[\"image/jpeg\"]},\"body\":\"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\",\"statusCodeValue\":200,\"statusCode\":\"OK\"}]";
+		JSONAssert.assertEquals(expected, result.getResponse().getContentAsString(), false);
+	}
+	
+	@Test
+	public void getImgsByAlbumIdExceptionTest() throws Exception {
+		Mockito.when(imgRepository.findByAlbumId(5)).thenReturn(new ArrayList<ExtendedImage>());
+		RequestBuilder requestBuilder = MockMvcRequestBuilders.get("/get-images-by-albumid?albumId=5")
+				.accept(MediaType.APPLICATION_JSON);
+		try {
+			mockMvc.perform(requestBuilder).andReturn();
+		} catch (EntityNotFoundException e) {
+			System.out.println("Expected");
+		}
+		catch(Exception e) {
+			Assert.assertFalse("Expected EntityNotFoundException but got " + e.getClass(), Boolean.TRUE);		}
+	}
+
+	@Test
+	public void getAllImgsInfoTest() throws Exception {
+		Mockito.when(imgRepository.findAll()).thenReturn(mockList);
+			RequestBuilder requestBuilder = MockMvcRequestBuilders.get("/get-all-images-info")
+				.accept(MediaType.APPLICATION_JSON);
+		
+		MvcResult result = mockMvc.perform(requestBuilder).andReturn();
+
+		String expected = "[{\"albumId\":1,\"id\":1,\"title\":\"amazing isalnd view\","
+				+ "\"url\":\"https://shield-j-test.s3.amazonaws.com/photo1.jfif\","
+				+ "\"thumbnailUrl\":\"https://shield-j-test.s3.amazonaws.com/photo1.jfif\","
+				+ "\"downloadTime\":\"1970-01-19T19:59:06.342+00:00\","
+				+ "\"localImgPath\":\"" + ESCAPED_IMG1_LOCAL_PATH + "\","
+				+ "\"fileSize\":8.46}]";
+
+		JSONAssert.assertEquals(expected, result.getResponse().getContentAsString(), false);
+	}
+}
